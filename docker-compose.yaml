@@ -1,0 +1,46 @@
+services:
+  # Serviço para o servidor Ollama, que gerenciará os modelos
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    # Mapeia a porta do host para a porta do container
+    ports:
+      - "11434:11434"
+    # Cria um volume persistente para armazenar os modelos
+    volumes:
+      - ollama_data:/root/.ollama
+    # Ativa o suporte a GPU, se disponível (requer o NVIDIA Container Toolkit)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      # Opcional: permite que o Ollama seja acessado de outros hosts
+      - OLLAMA_HOST=0.0.0.0:11434
+    command: >
+      sh -c "ollama pull medllama2 && ollama serve"
+
+  # Serviço para a aplicação FastAPI que consome o Ollama
+  fastapi_app:
+    # Constrói a imagem a partir do Dockerfile local
+    build: .
+    container_name: fastapi_app
+    # Mapeia a porta do host para a porta do container da API
+    ports:
+      - "8000:8000"
+    # Garante que o Ollama seja iniciado antes do FastAPI
+    depends_on:
+      - ollama
+    # Configura a variável de ambiente para que a API saiba onde encontrar o Ollama
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+    # Opcional: monta o código local para desenvolvimento com hot-reloading
+    volumes:
+     - .:/app
+
+# Define o volume nomeado para persistência dos modelos Ollama
+volumes:
+  ollama_data: {}
